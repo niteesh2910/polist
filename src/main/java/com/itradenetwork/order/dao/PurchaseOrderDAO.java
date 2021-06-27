@@ -17,6 +17,7 @@ import org.springframework.util.CollectionUtils;
 import com.itradenetwork.framework.dao.BaseDAO;
 import com.itradenetwork.framework.entity.PurchaseOrder;
 import com.itradenetwork.framework.utils.FilterAndInclusionSpecifications;
+import com.itradenetwork.framework.utils.OracleQueryBuilder;
 import com.itradenetwork.framework.utils.QueryBuilder;
 
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PurchaseOrderDAO extends BaseDAO {
 
 	private static final String GET_PO_ID_ITN_LOG = "select distinct decode(tablename,'PURCHASEORDER2',lo.pk_id,'PURCHASEORDER2_CATALOGENTRY',fk_id1) poid from itnauditlog lo"
-			+ " where AUDITDATETIME > sysdate - interval '10' DAY and tablename in ('PURCHASEORDER2','PURCHASEORDER2_CATALOGENTRY')";
+			+ " where AUDITDATETIME > sysdate - interval '10' SECOND and tablename in ('PURCHASEORDER2','PURCHASEORDER2_CATALOGENTRY')";
 
 	private static final String GET_PO = " SELECT P.PURCHASEORDERID Id,P.LOADNUMBER loadNumber, P.DATEREQUIRED arrivalDate, P.ROUTINGTYPE, P.CURRENCY currency, P.PURCHASEORDERNUMBER poNumber, "
 			+ "  P.DATESUBMITTED poSubmissionDate, P.DATEDELIVERED receivedDate,  P.BUYERMEMBERCOMPANYID clientId, P.DATESHIPPING shippedDate,  P.STATUSNAME statusName, "
@@ -61,17 +62,17 @@ public class PurchaseOrderDAO extends BaseDAO {
 		log.info("PurchaseOrderDAO.getPagedPurchaseOrders starts");
 		StringBuilder query = new StringBuilder(GET_PO).append(whereClause);
 
-		String pagedQuery = new QueryBuilder(query.toString()).filterNamedParameter(filterAndInclude, "P", false)
+		String pagedQuery = new OracleQueryBuilder(query.toString()).filterNamedParameter(filterAndInclude, "P")
 				.namedParameterSetValues(filterAndInclude, params).with(pageable, "P").toString();
 		log.info("PurchaseOrderDAO.getPagedPurchaseOrders query - {}, params - {}", pagedQuery, params);
 
 		Long totalCount = 0l;
 		List<PurchaseOrder> resultsList = null;
-		String countQuery = new QueryBuilder(pagedQuery, true, "ID", "P").toString();
+		final String countQuery = " select count(1) from (" + pagedQuery + ")";
 		try {
-			resultsList = namedParameterJdbcTemplate.query(pagedQuery, params,
+			resultsList = namedParameterJdbcTemplateEnterprise.query(pagedQuery, params,
 					new BeanPropertyRowMapper<PurchaseOrder>(PurchaseOrder.class));
-			totalCount = namedParameterJdbcTemplate.queryForObject(countQuery, params, Long.class);
+			totalCount = namedParameterJdbcTemplateEnterprise.queryForObject(countQuery, params, Long.class);
 		} catch (DataAccessException e) {
 			log.info("PurchaseOrderDAO.getPagedPurchaseOrders no orders found for selected criteria");
 		}

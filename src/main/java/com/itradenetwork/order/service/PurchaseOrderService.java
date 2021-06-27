@@ -3,14 +3,10 @@ package com.itradenetwork.order.service;
 import static com.itradenetwork.framework.utils.ApplicationConstants.PROPERTY_HOST_URL;
 import static com.itradenetwork.framework.utils.ApplicationConstants.AppUri.BASE_URI_CONSTANT;
 import static com.itradenetwork.framework.utils.ApplicationConstants.AppUri.USER_APP_URI;
-import static com.itradenetwork.framework.utils.ApplicationConstants.DateFilters.PO_SUBMISSION_DATE;
-import static com.itradenetwork.framework.utils.ApplicationConstants.DateFilters.SHIPPED_DATE;
 import static com.itradenetwork.framework.utils.ApplicationConstants.UserUrl.URL_FOR_USER_PREFERENCE;
 import static com.itradenetwork.framework.utils.SQLConstants.AND;
 import static com.itradenetwork.framework.utils.SQLConstants.BETWEEN_START_DATE_AND_END_DATE;
 import static com.itradenetwork.framework.utils.SQLConstants.CLIENT_ID;
-import static com.itradenetwork.framework.utils.SQLConstants.IS_NULL_AND;
-import static com.itradenetwork.framework.utils.SQLConstants.IS_NULL_OR;
 import static com.itradenetwork.framework.utils.SQLConstants.LANGUAGE_CODE;
 import static com.itradenetwork.framework.utils.SQLConstants.VENDOR_ID;
 import static com.itradenetwork.framework.utils.SQLConstants.WHERE;
@@ -26,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.core.ParameterizedTypeReference;
@@ -211,16 +208,10 @@ public class PurchaseOrderService {
 
 	private void setDateFiltersToClause(StringBuilder whereClause, String filteringColumn) {
 		log.debug("PurchaseOrderService.setDateFiltersToClause starts for filteringColumn - {}", filteringColumn);
-		if (filteringColumn.equals(SHIPPED_DATE) && securityContextUserDetails.isBuyer()) {
-			whereClause.append("((").append(" P.").append("DATESHIPPING").append(IS_NULL_AND).append(" P.DATEREQUIRED ")
-					.append(BETWEEN_START_DATE_AND_END_DATE).append(") OR (").append(" P.").append("DATESHIPPING")
-					.append(BETWEEN_START_DATE_AND_END_DATE).append("))");
-		} else if (filteringColumn.equals(PO_SUBMISSION_DATE)) {
-			whereClause.append("(").append(" P.").append(filteringColumn).append(BETWEEN_START_DATE_AND_END_DATE)
-					.append(")");
+		if (securityContextUserDetails.isBuyer()) {
+			whereClause.append(" P.DATEREQUIRED ").append(BETWEEN_START_DATE_AND_END_DATE);
 		} else {
-			whereClause.append("(").append(" P.").append("DATEREQUIRED").append(IS_NULL_OR).append("P.")
-					.append("DATEREQUIRED").append(BETWEEN_START_DATE_AND_END_DATE).append(")");
+			whereClause.append(" P.DATESHIPPING ").append(BETWEEN_START_DATE_AND_END_DATE);
 		}
 		log.debug("PurchaseOrderService.setDateFiltersToClause exit for filteringColumn - {}", filteringColumn);
 	}
@@ -333,22 +324,26 @@ public class PurchaseOrderService {
 			Map<String, String> cachedKeyValues = jedis.hgetAll(keym);
 			if (!CollectionUtils.isEmpty(cachedKeyValues) && StringUtils.hasLength(cachedKeyValues.get("poids"))) {
 				long lastsyncedkey = Long.parseLong(cachedKeyValues.get("lastsyncTime"));
-				Set<BigInteger> polist = objectMapper.readValue(cachedKeyValues.get("poids"),
-						new TypeReference<Set<BigInteger>>() {
+				Set<String> polist = objectMapper.readValue(cachedKeyValues.get("poids"),
+						new TypeReference<Set<String>>() {
 						});
 				Set<String> afterLastSyncd = jedis.zrangeByScore(
 						getEnvSpecificNamespaces("CLIENT_PO_LOG_LIST") + ":" + securityContextUserDetails.getOrgId(),
 						lastsyncedkey, now.getTime());
 				for (String poids : afterLastSyncd) {
-					polist.addAll(objectMapper.readValue(poids, new TypeReference<Set<BigInteger>>() {
+					polist.addAll(objectMapper.readValue(poids, new TypeReference<Set<String>>() {
 					}));
 				}
-				List<String> data = jedis.mget(polist.toArray(new String[0]));
+				List<String> poidkeys = polist.stream()
+						.map(c -> getEnvSpecificNamespaces(CacheNameConstants.PURCHASE_ORDER_CACHE_NAME) + ":" + c)
+						.collect(Collectors.toList());
+				List<String> data = jedis.mget(poidkeys.toArray(new String[0]));
 				List<PurchaseOrder> pos = objectMapper.readValue(data.toString(),
 						new TypeReference<List<PurchaseOrder>>() {
 						});
 				Map<String, String> lastSyncedMap = new HashMap<>();
 				lastSyncedMap.put("lastsyncTime", String.valueOf(now.getTime()));
+				lastSyncedMap.put("poids", objectMapper.writeValueAsString(polist));
 				jedis.hmset(keym, lastSyncedMap);
 				orders = new CustomPageImpl<>(pos);
 			}

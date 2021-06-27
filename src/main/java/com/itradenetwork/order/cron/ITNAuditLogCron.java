@@ -49,11 +49,11 @@ public class ITNAuditLogCron {
 		log.info("ITNAuditLogCron.init cronEnabled - {}", cronEnabled);
 	}
 
-//	@Scheduled(fixedRate = 10000)
+	@Scheduled(fixedRate = 10000)
 	public void invokeITNLogs() {
 		Date now = new Date();
 		double clientPOListKey = now.getTime();
-//		if (isCronEnabled) {
+		if (isCronEnabled) {
 			List<BigInteger> poIds = purchaseOrderDAO.getItnLogPurchaseOrders();
 			if (!CollectionUtils.isEmpty(poIds)) {
 				Jedis jedis = jedisPool.getResource();
@@ -85,7 +85,7 @@ public class ITNAuditLogCron {
 				transaction.mset(abc);
 				transaction.exec();
 			}
-//		}
+		}
 	}
 
 	private String getEnvSpecificNamespaces(String cache) {
