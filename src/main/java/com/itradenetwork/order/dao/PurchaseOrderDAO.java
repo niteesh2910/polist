@@ -28,15 +28,15 @@ public class PurchaseOrderDAO extends BaseDAO {
 	private static final String GET_PO_ID_ITN_LOG = "select distinct decode(tablename,'PURCHASEORDER2',lo.pk_id,'PURCHASEORDER2_CATALOGENTRY',fk_id1) poid from itnauditlog lo"
 			+ " where AUDITDATETIME > sysdate - interval '10' DAY and tablename in ('PURCHASEORDER2','PURCHASEORDER2_CATALOGENTRY')";
 
-	private static final String GET_PO = " SELECT PO.PURCHASEORDERID Id,PO.LOADNUMBER loadNumber, PO.DATEREQUIRED arrivalDate, PO.ROUTINGTYPE, PO.CURRENCY currency, PO.PURCHASEORDERNUMBER poNumber, "
-			+ "  PO.DATESUBMITTED poSubmissionDate, PO.DATEDELIVERED receivedDate,  PO.BUYERMEMBERCOMPANYID clientId, PO.DATESHIPPING shippedDate,  PO.STATUSNAME statusName, "
-			+ "  PO.SELLERMEMBERCOMPANYID vendorId, PO.DELIVEREDLOCID shipToWareHouseId, PO.PICKUPLOCATIONID shipFromWareHouseId, "
-			+ "  PO.POLINK poLink, PO.LOADID loadId FROM PURCHASEORDER2 PO WHERE PO.PURCHASEORDERID IN (:idList)";
+	private static final String GET_PO = " SELECT P.PURCHASEORDERID Id,P.LOADNUMBER loadNumber, P.DATEREQUIRED arrivalDate, P.ROUTINGTYPE, P.CURRENCY currency, P.PURCHASEORDERNUMBER poNumber, "
+			+ "  P.DATESUBMITTED poSubmissionDate, P.DATEDELIVERED receivedDate,  P.BUYERMEMBERCOMPANYID clientId, P.DATESHIPPING shippedDate,  P.STATUSNAME statusName, "
+			+ "  P.SELLERMEMBERCOMPANYID vendorId, P.DELIVEREDLOCID shipToWareHouseId, P.PICKUPLOCATIONID shipFromWareHouseId, "
+			+ "  P.POLINK poLink, P.LOADID loadId FROM PURCHASEORDER2 P ";
 
 	public List<PurchaseOrder> getPurchaseOrders(List<BigInteger> ids) {
 		List<PurchaseOrder> pos = null;
 		try {
-			pos = namedParameterJdbcTemplateEnterprise.query(GET_PO, Collections.singletonMap("idList", ids),
+			pos = namedParameterJdbcTemplateEnterprise.query(GET_PO+" WHERE P.PURCHASEORDERID IN (:idList)", Collections.singletonMap("idList", ids),
 					new BeanPropertyRowMapper<PurchaseOrder>(PurchaseOrder.class));
 		} catch (EmptyResultDataAccessException e) {
 			log.error("PurchaseOrderDAO.invokeITNLogs getPurchaseOrders occured while getting pos - {}", e.getMessage(),
@@ -61,8 +61,8 @@ public class PurchaseOrderDAO extends BaseDAO {
 		log.info("PurchaseOrderDAO.getPagedPurchaseOrders starts");
 		StringBuilder query = new StringBuilder(GET_PO).append(whereClause);
 
-		String pagedQuery = new QueryBuilder(query.toString()).filterNamedParameter(filterAndInclude, "PO", false)
-				.namedParameterSetValues(filterAndInclude, params).with(pageable, "PO").toString();
+		String pagedQuery = new QueryBuilder(query.toString()).filterNamedParameter(filterAndInclude, "P", false)
+				.namedParameterSetValues(filterAndInclude, params).with(pageable, "P").toString();
 		log.info("PurchaseOrderDAO.getPagedPurchaseOrders query - {}, params - {}", pagedQuery, params);
 
 		Long totalCount = 0l;
