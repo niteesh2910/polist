@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itradenetwork.framework.cache.CacheNameConstants;
 import com.itradenetwork.framework.entity.PurchaseOrder;
+import com.itradenetwork.framework.entity.PurchaseOrderItem;
 import com.itradenetwork.order.dao.PurchaseOrderDAO;
 
 import lombok.extern.slf4j.Slf4j;
@@ -58,16 +59,20 @@ public class ITNAuditLogCron {
 			if (!CollectionUtils.isEmpty(poIds)) {
 				Jedis jedis = jedisPool.getResource();
 				List<PurchaseOrder> pos = purchaseOrderDAO.getPurchaseOrders(poIds);
-				String[] abc = new String[pos.size() * 2];
+				Map<BigInteger, List<PurchaseOrderItem>> poItems = purchaseOrderDAO.getPurchaseOrderItems(poIds);
+				for (PurchaseOrder purchaseOrder : pos) {
+					purchaseOrder.setPurchaseOrderItems(poItems.get(purchaseOrder.getId()));
+				}
+				String[] poCache = new String[pos.size() * 2];
 				Transaction transaction = jedis.multi();
 				Map<BigInteger, List<BigInteger>> clientPOMap = new HashMap<>();
 				for (int i = 0; i < pos.size(); i++) {
 					PurchaseOrder po = pos.get(i);
 					String key = String.valueOf(
 							getEnvSpecificNamespaces(CacheNameConstants.PURCHASE_ORDER_CACHE_NAME) + ":" + po.getId());
-					abc[2 * i] = key;
+					poCache[2 * i] = key;
 					try {
-						abc[2 * i + 1] = objectMapper.writeValueAsString(po);
+						poCache[2 * i + 1] = objectMapper.writeValueAsString(po);
 					} catch (Exception e) {
 						log.error("ITNAuditLogCron.invokeITNLogs error occured while po json converison - {}",
 								e.getMessage(), e);
@@ -81,8 +86,10 @@ public class ITNAuditLogCron {
 				for (Map.Entry<BigInteger, List<BigInteger>> e : clientPOMap.entrySet()) {
 					transaction.zadd(getEnvSpecificNamespaces("CLIENT_PO_LOG_LIST") + ":" + e.getKey(), clientPOListKey,
 							String.valueOf(e.getValue()));
+//					transaction.zadd(getEnvSpecificNamespaces("CLIENT_PO_LOG_LIST"), clientPOListKey,
+//							e.getKey()+":"+clientPOListKey+"::"+e.getValue());
 				}
-				transaction.mset(abc);
+				transaction.mset(poCache);
 				transaction.exec();
 			}
 		}

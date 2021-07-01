@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.itradenetwork.framework.config.RestControllerHandler;
+import com.itradenetwork.framework.dto.Member;
 import com.itradenetwork.framework.entity.FilterDataSet;
 import com.itradenetwork.framework.entity.PurchaseOrder;
 import com.itradenetwork.framework.utils.ApiConstant;
@@ -72,5 +73,10 @@ public class PurchaseOrderController {
 	public ResponseEntity<Boolean> getAll() {
 		itnAuditLogCron.invokeITNLogs();
 		return new ResponseEntity<>(true, HttpStatus.OK);
+	}
+	
+	@GetMapping("/user")
+	public ResponseEntity<Member> getUserRestrictions() {
+		return new ResponseEntity<>(purchaseOrderService.getUserRestrictions(), HttpStatus.OK);
 	}
 }
